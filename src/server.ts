@@ -20,6 +20,20 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Root route
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'Anycomp Backend API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      specialists: '/api/specialists',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Routes
 app.use('/api', routes);
 

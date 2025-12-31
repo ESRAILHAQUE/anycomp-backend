@@ -8,16 +8,14 @@ const specialistController = new SpecialistController();
 
 // Validation rules
 const createSpecialistValidation = [
-  body('name').notEmpty().withMessage('Name is required'),
-  body('email').optional().isEmail().withMessage('Invalid email format'),
-  body('phone').optional().isMobilePhone('any').withMessage('Invalid phone number'),
+  body('title').notEmpty().withMessage('Title is required'),
+  body('base_price').isNumeric().withMessage('Base price must be a number'),
+  body('duration_days').isInt().withMessage('Duration days must be an integer'),
 ];
 
 const updateSpecialistValidation = [
-  body('name').optional().notEmpty().withMessage('Name cannot be empty'),
-  body('email').optional().isEmail().withMessage('Invalid email format'),
-  body('phone').optional().isMobilePhone('any').withMessage('Invalid phone number'),
-  body('status').optional().isIn(['draft', 'published']).withMessage('Status must be draft or published'),
+  body('title').optional().notEmpty().withMessage('Title cannot be empty'),
+  body('is_draft').optional().isBoolean().withMessage('is_draft must be a boolean'),
 ];
 
 // Routes

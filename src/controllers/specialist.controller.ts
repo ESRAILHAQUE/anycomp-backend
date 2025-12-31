@@ -1,13 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '../config/data-source';
-import { Specialist, SpecialistStatus } from '../entities/Specialist.entity';
+import { Specialist } from '../entities/Specialist.entity';
 import { AppError } from '../middleware/errorHandler';
 import { Repository } from 'typeorm';
 
 interface SpecialistQueryParams {
   page?: number;
   limit?: number;
-  status?: SpecialistStatus | 'all';
+  status?: 'all' | 'draft' | 'published';
   search?: string;
 }
 
@@ -40,20 +40,21 @@ export class SpecialistController {
       const queryBuilder = this.specialistRepository
         .createQueryBuilder('specialist')
         .leftJoinAndSelect('specialist.service_offerings', 'services')
-        .leftJoinAndSelect('specialist.media', 'media');
+        .leftJoinAndSelect('specialist.media', 'media')
+        .where('specialist.deleted_at IS NULL');
 
-      // Apply status filter
-      if (status !== 'all') {
-        queryBuilder.where('specialist.status = :status', { status });
-      } else {
-        // For 'all', we still want to show both draft and published
-        queryBuilder.where('1=1');
+      // Apply status filter (is_draft)
+      if (status === 'draft') {
+        queryBuilder.andWhere('specialist.is_draft = :isDraft', { isDraft: true });
+      } else if (status === 'published') {
+        queryBuilder.andWhere('specialist.is_draft = :isDraft', { isDraft: false });
       }
+      // For 'all', show both draft and published
 
       // Apply search filter
       if (search) {
         queryBuilder.andWhere(
-          '(specialist.name ILIKE :search OR specialist.email ILIKE :search OR specialist.specialization ILIKE :search)',
+          '(specialist.title ILIKE :search OR specialist.description ILIKE :search OR specialist.slug ILIKE :search)',
           { search: `%${search}%` }
         );
       }
@@ -99,7 +100,7 @@ export class SpecialistController {
         relations: ['service_offerings', 'media'],
       });
 
-      if (!specialist) {
+      if (!specialist || specialist.deleted_at) {
         throw new AppError('Specialist not found', 404);
       }
 
@@ -121,9 +122,24 @@ export class SpecialistController {
     try {
       const specialistData = req.body;
 
-      // Set default status to DRAFT if not provided
-      if (!specialistData.status) {
-        specialistData.status = SpecialistStatus.DRAFT;
+      // Generate slug from title if not provided
+      if (specialistData.title && !specialistData.slug) {
+        specialistData.slug = specialistData.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+      }
+
+      // Set default is_draft to true if not provided
+      if (specialistData.is_draft === undefined) {
+        specialistData.is_draft = true;
+      }
+
+      // Calculate final_price if base_price and platform_fee are provided
+      if (specialistData.base_price && specialistData.platform_fee) {
+        specialistData.final_price = parseFloat(specialistData.base_price) + parseFloat(specialistData.platform_fee);
+      } else if (specialistData.base_price) {
+        specialistData.final_price = parseFloat(specialistData.base_price);
       }
 
       const specialist = this.specialistRepository.create(specialistData);
@@ -156,8 +172,27 @@ export class SpecialistController {
         where: { id },
       });
 
-      if (!specialist) {
+      if (!specialist || specialist.deleted_at) {
         throw new AppError('Specialist not found', 404);
+      }
+
+      // Update slug if title changed
+      if (updateData.title && updateData.title !== specialist.title) {
+        updateData.slug = updateData.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
+      }
+
+      // Recalculate final_price if base_price or platform_fee changed
+      if (updateData.base_price !== undefined || updateData.platform_fee !== undefined) {
+        const basePrice = updateData.base_price !== undefined 
+          ? parseFloat(updateData.base_price) 
+          : parseFloat(specialist.base_price.toString());
+        const platformFee = updateData.platform_fee !== undefined 
+          ? parseFloat(updateData.platform_fee) 
+          : parseFloat((specialist.platform_fee || 0).toString());
+        updateData.final_price = basePrice + platformFee;
       }
 
       // Update specialist
@@ -177,7 +212,7 @@ export class SpecialistController {
     }
   };
 
-  // Delete specialist
+  // Delete specialist (soft delete)
   deleteSpecialist = async (
     req: Request,
     res: Response,
@@ -190,11 +225,13 @@ export class SpecialistController {
         where: { id },
       });
 
-      if (!specialist) {
+      if (!specialist || specialist.deleted_at) {
         throw new AppError('Specialist not found', 404);
       }
 
-      await this.specialistRepository.remove(specialist);
+      // Soft delete
+      specialist.deleted_at = new Date();
+      await this.specialistRepository.save(specialist);
 
       res.status(204).json({
         status: 'success',
@@ -205,7 +242,7 @@ export class SpecialistController {
     }
   };
 
-  // Publish/Unpublish specialist
+  // Toggle publish status (is_draft)
   togglePublishStatus = async (
     req: Request,
     res: Response,
@@ -213,29 +250,21 @@ export class SpecialistController {
   ) => {
     try {
       const { id } = req.params;
-      const { status } = req.body;
+      const { is_draft } = req.body;
 
       const specialist = await this.specialistRepository.findOne({
         where: { id },
       });
 
-      if (!specialist) {
+      if (!specialist || specialist.deleted_at) {
         throw new AppError('Specialist not found', 404);
       }
 
-      // Validate status
-      if (status && !Object.values(SpecialistStatus).includes(status)) {
-        throw new AppError('Invalid status. Use "draft" or "published"', 400);
-      }
-
-      // Toggle status if not provided
-      if (!status) {
-        specialist.status =
-          specialist.status === SpecialistStatus.PUBLISHED
-            ? SpecialistStatus.DRAFT
-            : SpecialistStatus.PUBLISHED;
+      // Toggle is_draft if not provided
+      if (is_draft === undefined) {
+        specialist.is_draft = !specialist.is_draft;
       } else {
-        specialist.status = status;
+        specialist.is_draft = is_draft;
       }
 
       const updatedSpecialist = await this.specialistRepository.save(specialist);
@@ -253,4 +282,3 @@ export class SpecialistController {
     }
   };
 }
-

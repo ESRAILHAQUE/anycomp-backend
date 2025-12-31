@@ -6,25 +6,33 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
+export enum TierName {
+  TIER_1 = 'tier_1',
+  TIER_2 = 'tier_2',
+  TIER_3 = 'tier_3',
+  TIER_4 = 'tier_4',
+  TIER_5 = 'tier_5',
+}
+
 @Entity('platform_fee')
 export class PlatformFee {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 100 })
-  fee_name: string;
+  @Column({
+    type: 'enum',
+    enum: TierName,
+  })
+  tier_name: TierName;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  amount: number;
+  @Column({ type: 'int' })
+  min_value: number;
 
-  @Column({ type: 'varchar', length: 10, default: 'MYR' })
-  currency: string;
+  @Column({ type: 'int' })
+  max_value: number;
 
-  @Column({ type: 'text', nullable: true })
-  description: string;
-
-  @Column({ type: 'boolean', default: true })
-  is_active: boolean;
+  @Column({ type: 'decimal', precision: 5, scale: 2 })
+  platform_fee_percentage: number;
 
   @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
@@ -32,4 +40,3 @@ export class PlatformFee {
   @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
 }
-
