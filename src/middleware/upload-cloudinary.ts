@@ -19,6 +19,8 @@ const storage = new CloudinaryStorage({
       ],
       public_id: `specialist-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
       resource_type: 'image',
+      format: 'auto', // Auto format optimization
+      fetch_format: 'auto',
     };
   },
 });

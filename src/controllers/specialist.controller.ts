@@ -184,8 +184,16 @@ export class SpecialistController {
         const mediaPromises = (req.files as Express.Multer.File[]).map(async (file: any, index) => {
           // Check if file has Cloudinary URL (production) or local path (development)
           let filePath: string;
-          if (file.path) {
-            // Cloudinary upload - file.path contains the Cloudinary URL
+          
+          // Cloudinary upload - check multiple possible properties
+          if (file.secure_url) {
+            // Cloudinary secure URL (preferred)
+            filePath = file.secure_url;
+          } else if (file.url) {
+            // Cloudinary URL (fallback)
+            filePath = file.url;
+          } else if (file.path && file.path.startsWith('http')) {
+            // Cloudinary URL in path property
             filePath = file.path;
           } else if (file.filename) {
             // Local upload - construct local path
@@ -197,9 +205,9 @@ export class SpecialistController {
 
           const media = this.mediaRepository.create({
             specialists: specialistId,
-            file_name: file.originalname,
+            file_name: file.originalname || 'image',
             file_path: filePath,
-            file_size: file.size || 0,
+            file_size: file.size || file.bytes || 0,
             display_order: index,
             mime_type: file.mimetype as any,
             media_type: 'image' as any,

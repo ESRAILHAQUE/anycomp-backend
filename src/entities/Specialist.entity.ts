@@ -65,6 +65,15 @@ export class Specialist {
   @Column({ type: 'int' })
   duration_days: number;
 
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  service_category: string;
+
+  @Column({ type: 'varchar', length: 10, default: 'MYR' })
+  currency: string;
+
+  @Column({ type: 'text', nullable: true })
+  company_types: string; // JSON array stored as text
+
   @OneToMany(() => ServiceOffering, (service) => service.specialist)
   service_offerings: ServiceOffering[];
 
