@@ -23,6 +23,12 @@ export class ServiceOffering {
   @JoinColumn({ name: 'specialists' })
   specialist: Specialist;
 
+  @Column({ type: 'varchar', length: 255 })
+  name: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
   @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
 

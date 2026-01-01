@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '../config/data-source';
 import { Specialist } from '../entities/Specialist.entity';
 import { Media } from '../entities/Media.entity';
+import { ServiceOffering } from '../entities/ServiceOffering.entity';
 import { AppError } from '../middleware/errorHandler';
 import { Repository } from 'typeorm';
 import path from 'path';
@@ -16,10 +17,12 @@ interface SpecialistQueryParams {
 export class SpecialistController {
   private specialistRepository: Repository<Specialist>;
   private mediaRepository: Repository<Media>;
+  private serviceOfferingRepository: Repository<ServiceOffering>;
 
   constructor() {
     this.specialistRepository = AppDataSource.getRepository(Specialist);
     this.mediaRepository = AppDataSource.getRepository(Media);
+    this.serviceOfferingRepository = AppDataSource.getRepository(ServiceOffering);
   }
 
   // Get all specialists with filters, search, and pagination
@@ -206,6 +209,20 @@ export class SpecialistController {
         });
 
         await Promise.all(mediaPromises);
+      }
+
+      // Handle service offerings if provided
+      if (specialistData.service_offerings && Array.isArray(specialistData.service_offerings) && specialistData.service_offerings.length > 0) {
+        const offeringPromises = specialistData.service_offerings.map(async (offering: any) => {
+          const serviceOffering = this.serviceOfferingRepository.create({
+            specialists: savedSpecialist.id,
+            name: offering.name || '',
+            description: offering.description || '',
+          });
+          return await this.serviceOfferingRepository.save(serviceOffering);
+        });
+
+        await Promise.all(offeringPromises);
       }
 
       // Reload specialist with relations
