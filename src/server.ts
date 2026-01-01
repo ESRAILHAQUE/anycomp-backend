@@ -81,36 +81,49 @@ app.use('/api', routes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Initialize database and start server
-const startServer = async () => {
+// Initialize database connection (for both local and Vercel)
+const initializeDatabase = async () => {
   try {
-    // Initialize TypeORM
-    await AppDataSource.initialize();
-    console.log('✅ Database connected successfully');
-
-    // Start server
-    app.listen(PORT, () => {
-      console.log(`🚀 Server is running on http://localhost:${PORT}`);
-      console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-    });
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+      console.log('✅ Database connected successfully');
+    }
   } catch (error) {
-    console.error('❌ Error starting server:', error);
-    process.exit(1);
+    console.error('❌ Error connecting to database:', error);
+    // Don't exit in serverless - let Vercel handle it
+    if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+      process.exit(1);
+    }
   }
 };
 
-// Handle graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, closing database connection...');
-  await AppDataSource.destroy();
-  process.exit(0);
-});
+// Initialize database on startup (for local development)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  initializeDatabase();
 
-process.on('SIGINT', async () => {
-  console.log('SIGINT received, closing database connection...');
-  await AppDataSource.destroy();
-  process.exit(0);
-});
+  // Start server (only for local development)
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on http://localhost:${PORT}`);
+    console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
 
-startServer();
+  // Handle graceful shutdown (only for local)
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, closing database connection...');
+    await AppDataSource.destroy();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('SIGINT received, closing database connection...');
+    await AppDataSource.destroy();
+    process.exit(0);
+  });
+} else {
+  // For Vercel, initialize database on first request
+  initializeDatabase();
+}
+
+// Export app for Vercel serverless functions
+export default app;
 
