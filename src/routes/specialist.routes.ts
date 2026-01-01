@@ -9,9 +9,10 @@ const router = Router();
 const specialistController = new SpecialistController();
 
 // Choose upload middleware based on environment
-// Use Cloudinary in production, local storage in development
-const uploadMiddleware = process.env.NODE_ENV === 'production' && 
-  process.env.CLOUDINARY_CLOUD_NAME 
+// Use Cloudinary in production if credentials are set, otherwise use local (development only)
+// In serverless environments (Vercel), Cloudinary is required
+const uploadMiddleware = (process.env.NODE_ENV === 'production' || 
+  process.env.VERCEL) && process.env.CLOUDINARY_CLOUD_NAME
   ? uploadMultipleCloudinary 
   : uploadMultiple;
 

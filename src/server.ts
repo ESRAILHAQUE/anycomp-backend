@@ -54,9 +54,11 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files
-import path from 'path';
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Serve uploaded files (only in development, not in serverless environments)
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  const path = require('path');
+  app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+}
 
 // Root route
 app.get('/', (req, res) => {

@@ -3,10 +3,16 @@ import path from 'path';
 import { Request } from 'express';
 import fs from 'fs';
 
-// Create uploads directory if it doesn't exist
+// Create uploads directory if it doesn't exist (only in development)
+// In production (Vercel/serverless), use Cloudinary instead
 const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+if (process.env.NODE_ENV !== 'production' && !fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  } catch (error) {
+    // Ignore errors in serverless environments
+    console.warn('Could not create uploads directory:', error);
+  }
 }
 
 // Configure storage
