@@ -1,8 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppDataSource } from '../config/data-source';
 import { Specialist } from '../entities/Specialist.entity';
+import { Media } from '../entities/Media.entity';
 import { AppError } from '../middleware/errorHandler';
 import { Repository } from 'typeorm';
+import path from 'path';
 
 interface SpecialistQueryParams {
   page?: number;
@@ -13,9 +15,11 @@ interface SpecialistQueryParams {
 
 export class SpecialistController {
   private specialistRepository: Repository<Specialist>;
+  private mediaRepository: Repository<Media>;
 
   constructor() {
     this.specialistRepository = AppDataSource.getRepository(Specialist);
+    this.mediaRepository = AppDataSource.getRepository(Media);
   }
 
   // Get all specialists with filters, search, and pagination
@@ -120,7 +124,33 @@ export class SpecialistController {
     next: NextFunction
   ) => {
     try {
-      const specialistData = req.body;
+      // Handle both JSON and FormData
+      let specialistData: any = {};
+      
+      if (req.body.data) {
+        // If data is sent as JSON string in FormData
+        try {
+          specialistData = typeof req.body.data === 'string' 
+            ? JSON.parse(req.body.data) 
+            : req.body.data;
+        } catch (parseError) {
+          throw new AppError('Invalid JSON data in FormData', 400);
+        }
+      } else {
+        // Regular JSON request
+        specialistData = req.body;
+      }
+
+      // Validate required fields
+      if (!specialistData.title) {
+        throw new AppError('Title is required', 400);
+      }
+      if (!specialistData.base_price || isNaN(parseFloat(specialistData.base_price))) {
+        throw new AppError('Base price must be a valid number', 400);
+      }
+      if (!specialistData.duration_days || !Number.isInteger(parseInt(specialistData.duration_days))) {
+        throw new AppError('Duration days must be a valid integer', 400);
+      }
 
       // Generate slug from title if not provided
       if (specialistData.title && !specialistData.slug) {
@@ -143,11 +173,51 @@ export class SpecialistController {
       }
 
       const specialist = this.specialistRepository.create(specialistData);
-      const savedSpecialist = await this.specialistRepository.save(specialist);
+      const savedSpecialist = (await this.specialistRepository.save(specialist)) as unknown as Specialist;
+
+      // Handle image uploads if files are present
+      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        const specialistId = savedSpecialist.id;
+        const mediaPromises = (req.files as Express.Multer.File[]).map(async (file: any, index) => {
+          // Check if file has Cloudinary URL (production) or local path (development)
+          let filePath: string;
+          if (file.path) {
+            // Cloudinary upload - file.path contains the Cloudinary URL
+            filePath = file.path;
+          } else if (file.filename) {
+            // Local upload - construct local path
+            filePath = `/uploads/${file.filename}`;
+          } else {
+            // Fallback
+            filePath = file.originalname;
+          }
+
+          const media = this.mediaRepository.create({
+            specialists: specialistId,
+            file_name: file.originalname,
+            file_path: filePath,
+            file_size: file.size || 0,
+            display_order: index,
+            mime_type: file.mimetype as any,
+            media_type: 'image' as any,
+            uploaded_at: new Date(),
+          });
+          return await this.mediaRepository.save(media);
+        });
+
+        await Promise.all(mediaPromises);
+      }
+
+      // Reload specialist with relations
+      const specialistId = savedSpecialist.id;
+      const specialistWithMedia = await this.specialistRepository.findOne({
+        where: { id: specialistId },
+        relations: ['service_offerings', 'media'],
+      });
 
       res.status(201).json({
         status: 'success',
-        data: { specialist: savedSpecialist },
+        data: { specialist: specialistWithMedia },
       });
     } catch (error) {
       if (error instanceof Error) {

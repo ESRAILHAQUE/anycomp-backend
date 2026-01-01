@@ -31,6 +31,9 @@ export class Specialist {
   @Column({ type: 'int', default: 0 })
   total_number_of_ratings: number;
 
+  @Column({ type: 'int', default: 0 })
+  purchases_count: number;
+
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
