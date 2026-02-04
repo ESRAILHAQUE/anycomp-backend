@@ -1,19 +1,20 @@
-import { Router } from 'express';
-import specialistRoutes from './specialist.routes';
+import { Router } from "express";
+import specialistRoutes from "./specialist.routes";
+import uploadRoutes from "./upload.routes";
 
 const router = Router();
 
 // API routes
-router.use('/specialists', specialistRoutes);
+router.use("/specialists", specialistRoutes);
+router.use("/uploads", uploadRoutes);
 
 // Health check
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.status(200).json({
-    status: 'success',
-    message: 'API is running',
+    status: "success",
+    message: "API is running",
     timestamp: new Date().toISOString(),
   });
 });
 
 export default router;
-

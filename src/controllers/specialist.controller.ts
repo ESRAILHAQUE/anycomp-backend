@@ -26,7 +26,6 @@ export class SpecialistController {
       AppDataSource.getRepository(ServiceOffering);
   }
 
-  /** Ensure slug is unique to avoid duplicate key constraint. Optionally exclude a specialist id (for updates). */
   private ensureUniqueSlug = async (
     baseSlug: string,
     excludeSpecialistId?: string
@@ -79,7 +78,6 @@ export class SpecialistController {
           isDraft: false,
         });
       }
-      // For 'all', show both draft and published
 
       // Apply search filter
       if (search) {
@@ -256,6 +254,30 @@ export class SpecialistController {
         await Promise.all(mediaPromises);
       }
 
+      // Handle direct Cloudinary uploads (URLs sent from client)
+      if (
+        Array.isArray(specialistData.media_urls) &&
+        specialistData.media_urls.length > 0
+      ) {
+        const specialistId = savedSpecialist.id;
+        const urls = specialistData.media_urls.slice(0, 3);
+        const urlPromises = urls.map(async (url: string, index: number) => {
+          if (!url) return null;
+          const media = this.mediaRepository.create({
+            specialists: specialistId,
+            file_name: `image-${index + 1}`,
+            file_path: url,
+            file_size: 0,
+            display_order: index,
+            mime_type: undefined as any,
+            media_type: "image" as any,
+            uploaded_at: new Date(),
+          });
+          return await this.mediaRepository.save(media);
+        });
+        await Promise.all(urlPromises.filter(Boolean) as Promise<any>[]);
+      }
+
       // Handle service offerings if provided
       if (
         specialistData.service_offerings &&
@@ -327,8 +349,6 @@ export class SpecialistController {
         throw new AppError("Specialist not found", 404);
       }
 
-      // Extract service_offerings so we never assign them to the specialist entity
-      // (they must be saved with specialists: id to satisfy the FK constraint)
       const serviceOfferingsPayload = Array.isArray(
         updateData.service_offerings
       )
@@ -434,6 +454,33 @@ export class SpecialistController {
 
         if (mediaPromises.length > 0) {
           await Promise.all(mediaPromises);
+        }
+      }
+
+      // Handle direct Cloudinary uploads on update (media_urls[0..2])
+      if (
+        Array.isArray(updateData.media_urls) &&
+        updateData.media_urls.length > 0
+      ) {
+        const urls = updateData.media_urls.slice(0, 3);
+        for (let displayOrder = 0; displayOrder < urls.length; displayOrder++) {
+          const url = urls[displayOrder];
+          if (!url) continue;
+          await this.mediaRepository.delete({
+            specialists: id,
+            display_order: displayOrder,
+          });
+          const media = this.mediaRepository.create({
+            specialists: id,
+            file_name: `image-${displayOrder + 1}`,
+            file_path: url,
+            file_size: 0,
+            display_order: displayOrder,
+            mime_type: undefined as any,
+            media_type: "image" as any,
+            uploaded_at: new Date(),
+          });
+          await this.mediaRepository.save(media);
         }
       }
 
