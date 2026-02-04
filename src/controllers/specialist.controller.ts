@@ -26,6 +26,30 @@ export class SpecialistController {
       AppDataSource.getRepository(ServiceOffering);
   }
 
+  /** Ensure slug is unique to avoid duplicate key constraint. Optionally exclude a specialist id (for updates). */
+  private ensureUniqueSlug = async (
+    baseSlug: string,
+    excludeSpecialistId?: string
+  ): Promise<string> => {
+    let slug = baseSlug;
+    let suffix = 0;
+    const maxAttempts = 100;
+    for (let i = 0; i < maxAttempts; i++) {
+      const qb = this.specialistRepository
+        .createQueryBuilder("s")
+        .where("s.slug = :slug", { slug })
+        .andWhere("s.deleted_at IS NULL");
+      if (excludeSpecialistId) {
+        qb.andWhere("s.id != :id", { id: excludeSpecialistId });
+      }
+      const existing = await qb.getOne();
+      if (!existing) return slug;
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+    }
+    return `${baseSlug}-${Date.now()}`;
+  };
+
   // Get all specialists with filters, search, and pagination
   getAllSpecialists = async (
     req: Request<{}, {}, {}, SpecialistQueryParams>,
@@ -162,12 +186,13 @@ export class SpecialistController {
         throw new AppError("Duration days must be a valid integer", 400);
       }
 
-      // Generate slug from title if not provided
+      // Generate slug from title if not provided, and ensure uniqueness to avoid duplicate key
       if (specialistData.title && !specialistData.slug) {
-        specialistData.slug = specialistData.title
+        const baseSlug = specialistData.title
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)/g, "");
+        specialistData.slug = await this.ensureUniqueSlug(baseSlug);
       }
 
       // Set default is_draft to true if not provided
@@ -299,12 +324,13 @@ export class SpecialistController {
         : undefined;
       delete updateData.service_offerings;
 
-      // Update slug if title changed
+      // Update slug if title changed, and ensure uniqueness to avoid duplicate key
       if (updateData.title && updateData.title !== specialist.title) {
-        updateData.slug = updateData.title
+        const baseSlug = updateData.title
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/(^-|-$)/g, "");
+        updateData.slug = await this.ensureUniqueSlug(baseSlug, id);
       }
 
       // Recalculate final_price if base_price or platform_fee changed
