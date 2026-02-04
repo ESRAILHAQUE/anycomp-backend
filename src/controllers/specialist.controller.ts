@@ -37,8 +37,7 @@ export class SpecialistController {
     for (let i = 0; i < maxAttempts; i++) {
       const qb = this.specialistRepository
         .createQueryBuilder("s")
-        .where("s.slug = :slug", { slug })
-        .andWhere("s.deleted_at IS NULL");
+        .where("s.slug = :slug", { slug });
       if (excludeSpecialistId) {
         qb.andWhere("s.id != :id", { id: excludeSpecialistId });
       }
@@ -54,7 +53,7 @@ export class SpecialistController {
   getAllSpecialists = async (
     req: Request<{}, {}, {}, SpecialistQueryParams>,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) => {
     try {
       const { page = 1, limit = 10, status = "all", search = "" } = req.query;
@@ -86,7 +85,7 @@ export class SpecialistController {
       if (search) {
         queryBuilder.andWhere(
           "(specialist.title ILIKE :search OR specialist.description ILIKE :search OR specialist.slug ILIKE :search)",
-          { search: `%${search}%` },
+          { search: `%${search}%` }
         );
       }
 
@@ -121,7 +120,7 @@ export class SpecialistController {
   getSpecialistById = async (
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) => {
     try {
       const { id } = req.params;
@@ -148,7 +147,7 @@ export class SpecialistController {
   createSpecialist = async (
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) => {
     try {
       // Handle both JSON and FormData
@@ -211,7 +210,7 @@ export class SpecialistController {
 
       const specialist = this.specialistRepository.create(specialistData);
       const savedSpecialist = (await this.specialistRepository.save(
-        specialist,
+        specialist
       )) as unknown as Specialist;
 
       // Handle image uploads if files are present
@@ -251,7 +250,7 @@ export class SpecialistController {
               uploaded_at: new Date(),
             });
             return await this.mediaRepository.save(media);
-          },
+          }
         );
 
         await Promise.all(mediaPromises);
@@ -271,7 +270,7 @@ export class SpecialistController {
               description: offering.description || "",
             });
             return await this.serviceOfferingRepository.save(serviceOffering);
-          },
+          }
         );
 
         await Promise.all(offeringPromises);
@@ -301,7 +300,7 @@ export class SpecialistController {
   updateSpecialist = async (
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) => {
     try {
       const { id } = req.params;
@@ -331,7 +330,7 @@ export class SpecialistController {
       // Extract service_offerings so we never assign them to the specialist entity
       // (they must be saved with specialists: id to satisfy the FK constraint)
       const serviceOfferingsPayload = Array.isArray(
-        updateData.service_offerings,
+        updateData.service_offerings
       )
         ? updateData.service_offerings
         : undefined;
@@ -364,8 +363,9 @@ export class SpecialistController {
 
       // Update specialist (no service_offerings in updateData)
       Object.assign(specialist, updateData);
-      const updatedSpecialist =
-        await this.specialistRepository.save(specialist);
+      const updatedSpecialist = await this.specialistRepository.save(
+        specialist
+      );
 
       // Replace service offerings: remove existing, create new with specialists = id
       if (serviceOfferingsPayload !== undefined) {
@@ -379,7 +379,7 @@ export class SpecialistController {
                 description: offering.description || "",
               });
               return await this.serviceOfferingRepository.save(serviceOffering);
-            },
+            }
           );
           await Promise.all(offeringPromises);
         }
@@ -460,7 +460,7 @@ export class SpecialistController {
   deleteSpecialist = async (
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) => {
     try {
       const { id } = req.params;
@@ -490,7 +490,7 @@ export class SpecialistController {
   togglePublishStatus = async (
     req: Request,
     res: Response,
-    next: NextFunction,
+    next: NextFunction
   ) => {
     try {
       const { id } = req.params;
@@ -511,8 +511,9 @@ export class SpecialistController {
         specialist.is_draft = is_draft;
       }
 
-      const updatedSpecialist =
-        await this.specialistRepository.save(specialist);
+      const updatedSpecialist = await this.specialistRepository.save(
+        specialist
+      );
 
       res.status(200).json({
         status: "success",
