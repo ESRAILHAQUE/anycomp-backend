@@ -305,7 +305,20 @@ export class SpecialistController {
   ) => {
     try {
       const { id } = req.params;
-      const updateData = { ...req.body };
+      // Support both JSON and multipart/form-data ("data" JSON string)
+      let updateData: any = { ...req.body };
+      if (updateData?.data) {
+        try {
+          const parsed =
+            typeof updateData.data === "string"
+              ? JSON.parse(updateData.data)
+              : updateData.data;
+          updateData = { ...updateData, ...parsed };
+        } catch (e) {
+          throw new AppError("Invalid data format", 400);
+        }
+        delete updateData.data;
+      }
 
       const specialist = await this.specialistRepository.findOne({
         where: { id },
@@ -369,6 +382,58 @@ export class SpecialistController {
             },
           );
           await Promise.all(offeringPromises);
+        }
+      }
+
+      // Handle image uploads for update (image0, image1, image2)
+      const filesByField = req.files as
+        | Record<string, Express.Multer.File[]>
+        | undefined;
+      if (filesByField && !Array.isArray(filesByField)) {
+        const fieldNames = ["image0", "image1", "image2"] as const;
+        const mediaPromises = fieldNames
+          .map((fieldName, displayOrder) => {
+            const fileArr = filesByField[fieldName];
+            const file: any = fileArr && fileArr.length > 0 ? fileArr[0] : null;
+            if (!file) return null;
+
+            return (async () => {
+              // Remove existing media for that slot (keep other slots)
+              await this.mediaRepository.delete({
+                specialists: id,
+                display_order: displayOrder,
+              });
+
+              let filePath: string;
+              if (file.secure_url) {
+                filePath = file.secure_url;
+              } else if (file.url) {
+                filePath = file.url;
+              } else if (file.path && file.path.startsWith("http")) {
+                filePath = file.path;
+              } else if (file.filename) {
+                filePath = `/uploads/${file.filename}`;
+              } else {
+                filePath = file.originalname;
+              }
+
+              const media = this.mediaRepository.create({
+                specialists: id,
+                file_name: file.originalname || "image",
+                file_path: filePath,
+                file_size: file.size || file.bytes || 0,
+                display_order: displayOrder,
+                mime_type: file.mimetype as any,
+                media_type: "image" as any,
+                uploaded_at: new Date(),
+              });
+              return await this.mediaRepository.save(media);
+            })();
+          })
+          .filter(Boolean) as Promise<any>[];
+
+        if (mediaPromises.length > 0) {
+          await Promise.all(mediaPromises);
         }
       }
 

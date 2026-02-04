@@ -61,3 +61,10 @@ export const upload = multer({
 // Middleware for multiple images
 export const uploadMultiple = upload.array('images', 10); // Max 10 images
 
+// Middleware for updating up to 3 fixed image slots
+export const uploadUpdateImages = upload.fields([
+  { name: 'image0', maxCount: 1 },
+  { name: 'image1', maxCount: 1 },
+  { name: 'image2', maxCount: 1 },
+]);
+
